@@ -9,6 +9,7 @@ function App() {
   const [successMessage, setSuccessMessage] = useState("");
   const [karaokeUrl, setKaraokeUrl] = useState("");
   const [karaokeLoading, setKaraokeLoading] = useState(false);
+  const [progress, setProgress] = useState(0);
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -63,6 +64,12 @@ function App() {
       return;
     }
     setKaraokeLoading(true);
+    setProgress(5);
+
+    const progressInterval = setInterval(() => {
+      setProgress((prev) => (prev < 90 ? prev + Math.random() * 10 : prev));
+    }, 500);
+
     try {
       const response = await fetch("http://localhost:3000/karaokeify", {
         method: "POST",
@@ -86,7 +93,11 @@ function App() {
     } catch (error) {
       alert(error.message);
     } finally {
-      setKaraokeLoading(false);
+        clearInterval(progressInterval);
+        setProgress(100);
+        setKaraokeLoading(false);
+        setTimeout(() => setProgress(0), 2000);
+      
     }
   };
 
@@ -107,6 +118,11 @@ function App() {
           </button>
         </form>
       </div>
+      {karaokeLoading && (
+        <div className="progress-bar">
+        <div className="progress-fill" style={{ width: `${progress}%` }} />
+        </div>
+      )}
 
       <div className="content" id="livePitch">
         <h1>Pitch Shift</h1>
