@@ -44,7 +44,7 @@ app.post("/karaokeify", async (req, res) => {
 
   try {
     // Download audio from YouTube using yt-dlp
-    const downloadCmd = `yt-dlp -f bestaudio -x --audio-format mp3 -o "${inputFile}" "${url}"`;
+    const downloadCmd = `yt-dlp -f bestaudio -x --audio-format mp3 ...`;
     exec(downloadCmd, async (error) => {
       if (error) {
         console.error("YouTube download error:", error);
@@ -52,7 +52,7 @@ app.post("/karaokeify", async (req, res) => {
       }
 
       // Run Demucs
-      const demucsCmd = `/opt/anaconda3/envs/demucs/bin/demucs -d cpu -n htdemucs_6s --two-stems=vocals --mp3 "${inputFile}" --out "${outputDir}"`;
+      const demucsCmd = `demucs -d cpu -n htdemucs_6s --two-stems=vocals --mp3 ...`;
       exec(demucsCmd, async (error, stdout, stderr) => {
         if (error) {
           console.error("Demucs error:", error);
