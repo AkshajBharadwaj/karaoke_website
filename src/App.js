@@ -35,7 +35,7 @@ function App() {
     formData.append("semitones", pitchValue);
 
     try {
-      const response = await fetch("http://localhost:3000/pitch", {
+      const response = await fetch("https://karaoke-website.onrender.com/pitch", {
         method: "POST",
         body: formData,
       });
@@ -71,7 +71,7 @@ function App() {
     }, 500);
 
     try {
-      const response = await fetch("http://localhost:3000/karaokeify", {
+      const response = await fetch("https://karaoke-website.onrender.com/karaokeify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: karaokeUrl }),
