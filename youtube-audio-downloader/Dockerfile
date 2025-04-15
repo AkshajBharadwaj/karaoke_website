@@ -1,8 +1,9 @@
 FROM node:18
 
-# Install ffmpeg + python and link `python` binary
-RUN apt-get update && apt-get install -y ffmpeg python3 && \
-    ln -s /usr/bin/python3 /usr/bin/python
+RUN apt-get update && \
+    apt-get install -y ffmpeg python3 python3-pip && \
+    ln -s /usr/bin/python3 /usr/bin/python && \
+    pip3 install yt-dlp
 
 WORKDIR /app
 COPY . .
