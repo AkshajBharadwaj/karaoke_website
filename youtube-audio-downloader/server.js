@@ -35,26 +35,47 @@ app.post("/karaokeify", async (req, res) => {
   }
 
   const tmpDir = path.join(__dirname, `karaoke_${Date.now()}`);
-  const inputFile = path.join(tmpDir, "input.mp3");
+  const inputFile = path.join(tmpDir, "input.%(ext)s"); // let yt-dlp choose extension
   const outputDir = path.join(tmpDir, "output");
 
   fs.mkdirSync(tmpDir, { recursive: true });
   fs.mkdirSync(outputDir, { recursive: true });
 
   try {
-    // Download audio from YouTube using yt-dlp
+    // Construct command
     const downloadCmd = `/usr/local/bin/yt-dlp --ffmpeg-location /usr/bin/ffmpeg -f bestaudio -x --audio-format mp3 -o "${inputFile}" "${url}"`;
-    exec(downloadCmd, async (error) => {
+
+    console.log("⏬ Running yt-dlp command:", downloadCmd);
+
+    exec(downloadCmd, async (error, stdout, stderr) => {
+      console.log("yt-dlp stdout:", stdout);
+      console.error("yt-dlp stderr:", stderr);
+
       if (error) {
-        console.error("YouTube download error:", error);
+        console.error("❌ YouTube download error:", error);
         return res.status(500).json({ error: "Failed to download YouTube audio" });
       }
 
+      // Find downloaded .mp3 file
+      const downloadedFile = fs.readdirSync(tmpDir).find(f => f.endsWith(".mp3"));
+      if (!downloadedFile) {
+        console.error("❌ No MP3 file found in temp dir.");
+        return res.status(500).json({ error: "No audio file was downloaded." });
+      }
+
+      const fullInputPath = path.join(tmpDir, downloadedFile);
+
       // Run Demucs
-      const demucsCmd = `demucs -d cpu -n htdemucs_6s --two-stems=vocals --mp3 ...`;
+      const demucsCmd = `demucs -d cpu -n htdemucs_6s --two-stems=vocals --mp3 "${fullInputPath}" --out "${outputDir}"`;
+
+      console.log("🎛️ Running Demucs command:", demucsCmd);
+
       exec(demucsCmd, async (error, stdout, stderr) => {
+        console.log("Demucs stdout:", stdout);
+        console.error("Demucs stderr:", stderr);
+
         if (error) {
-          console.error("Demucs error:", error);
+          console.error("❌ Demucs error:", error);
           return res.status(500).json({ error: "Audio separation failed" });
         }
 
@@ -76,6 +97,7 @@ app.post("/karaokeify", async (req, res) => {
         archive.finalize();
 
         output.on("close", () => {
+          console.log("✅ Sending zip file:", zipPath);
           res.download(zipPath, "stems.zip", () => {
             fs.rmSync(tmpDir, { recursive: true, force: true });
           });
@@ -83,10 +105,11 @@ app.post("/karaokeify", async (req, res) => {
       });
     });
   } catch (err) {
-    console.error("Error:", err);
+    console.error("❌ Unexpected error:", err);
     res.status(500).json({ error: "Failed to karaokeify" });
   }
 });
+
 
 app.post("/download", upload.none(), (req, res) => {
   const { url } = req.body;
