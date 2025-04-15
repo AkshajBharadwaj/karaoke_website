@@ -1,13 +1,10 @@
 FROM node:18
 
-# Install system dependencies
+# Install ffmpeg and curl
 RUN apt-get update && \
-    apt-get install -y ffmpeg python3 python3-pip && \
-    pip3 install yt-dlp && \
-    chmod +x /root/.local/bin/yt-dlp
-
-# Make sure yt-dlp is in PATH
-ENV PATH="/root/.local/bin:${PATH}"
+    apt-get install -y ffmpeg curl && \
+    curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+    -o /usr/bin/yt-dlp && chmod +x /usr/bin/yt-dlp
 
 WORKDIR /app
 COPY . .

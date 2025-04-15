@@ -43,7 +43,7 @@ app.post("/karaokeify", async (req, res) => {
 
   try {
     // Construct command
-    const downloadCmd = `/root/.local/bin/yt-dlp --ffmpeg-location /usr/bin/ffmpeg -f bestaudio -x --audio-format mp3 -o "${inputFile}" "${url}"`;
+    const downloadCmd = `/usr/bin/yt-dlp --ffmpeg-location /usr/bin/ffmpeg -f bestaudio -x --audio-format mp3 -o "${inputFile}" "${url}"`;
 
     console.log("⏬ Running yt-dlp command:", downloadCmd);
 
