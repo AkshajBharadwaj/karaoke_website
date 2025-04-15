@@ -46,7 +46,10 @@ app.post("/karaokeify", async (req, res) => {
     const downloadCmd = `/usr/local/bin/yt-dlp --ffmpeg-location /usr/bin/ffmpeg -f bestaudio -x --audio-format mp3 -o "${inputFile}" "${url}"`;
 
     console.log("⏬ Running yt-dlp command:", downloadCmd);
-
+    exec("ls -l /usr/local/bin/yt-dlp", (err, stdout, stderr) => {
+      console.log("Check yt-dlp binary:", stdout || stderr);
+    });
+    
     exec(downloadCmd, async (error, stdout, stderr) => {
       console.log("yt-dlp stdout:", stdout);
       console.error("yt-dlp stderr:", stderr);
