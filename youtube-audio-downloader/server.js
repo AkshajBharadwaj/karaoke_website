@@ -7,13 +7,17 @@ const path = require("path");
 const fs = require("fs");
 const archiver = require("archiver");
 const ytdlp = require("yt-dlp-exec");
+const { exec } = require("child_process");
+
 const app = express();
 const port = 3000;
 
 ffmpeg.setFfmpegPath(ffmpegPath);
+
 const localYtDlp = "/opt/homebrew/bin/yt-dlp";
 const renderYtDlp = "/usr/local/bin/yt-dlp";
 const ytDlpPath = fs.existsSync(localYtDlp) ? localYtDlp : renderYtDlp;
+
 const upload = multer({ dest: "uploads/" });
 
 app.use(
@@ -28,7 +32,6 @@ app.use(express.json());
 app.get("/", (req, res) => {
   res.send("Welcome to the YouTube Video Downloader API");
 });
-
 
 app.post("/karaokeify", async (req, res) => {
   const { url } = req.body;
@@ -49,9 +52,8 @@ app.post("/karaokeify", async (req, res) => {
       extractAudio: true,
       audioFormat: "mp3",
       ffmpegLocation: "/usr/bin/ffmpeg",
-      binary: ytDlpPath
+      binary: ytDlpPath,
     });
-    
     console.log("✅ yt-dlp download complete");
 
     const downloadedFile = fs.readdirSync(tmpDir).find(f =>
@@ -106,8 +108,6 @@ app.post("/karaokeify", async (req, res) => {
   }
 });
 
-
-
 app.post("/download", upload.none(), (req, res) => {
   const { url } = req.body;
   if (!url || !url.startsWith("http")) {
@@ -127,11 +127,10 @@ app.post("/download", upload.none(), (req, res) => {
     }
 
     res.download(outputPath, "video.mp4", () => {
-      fs.unlinkSync(outputPath); // Clean up
+      fs.unlinkSync(outputPath);
     });
   });
 });
-
 
 app.post("/convert", upload.single("video"), (req, res) => {
   const filePath = req.file.path;
@@ -144,12 +143,10 @@ app.post("/convert", upload.single("video"), (req, res) => {
       console.error("Error converting video:", err);
       res.status(500).json({ error: "Failed to convert video" });
     })
-    .on("end", () => {
-      // Optionally delete the uploaded file after conversion
-      // fs.unlinkSync(filePath);
-    })
+    .on("end", () => {})
     .pipe(res, { end: true });
 });
+
 app.post("/pitch", upload.single("audio"), (req, res) => {
   const filePath = req.file.path;
   const semitones = parseFloat(req.body.semitones);
@@ -159,7 +156,7 @@ app.post("/pitch", upload.single("audio"), (req, res) => {
   }
 
   const outputFile = `${filePath}_pitched.mp3`;
-  const pitchFactor = Math.pow(2, semitones / 12); // Convert semitones to rate multiplier
+  const pitchFactor = Math.pow(2, semitones / 12);
 
   ffmpeg(filePath)
     .audioFilter(`asetrate=44100*${pitchFactor},atempo=${1 / pitchFactor}`)
@@ -181,7 +178,7 @@ app.post("/pitch", upload.single("audio"), (req, res) => {
 app.post("/split", upload.single("audio"), async (req, res) => {
   const inputFile = req.file.path;
   const outputDir = path.join(__dirname, `output_${Date.now()}`);
-  const envPathToDemucs = "/opt/anaconda3/envs/demucs/bin/demucs"; // Update this if your demucs path is different
+  const envPathToDemucs = "/opt/anaconda3/envs/demucs/bin/demucs";
 
   try {
     fs.mkdirSync(outputDir, { recursive: true });
@@ -197,10 +194,10 @@ app.post("/split", upload.single("audio"), async (req, res) => {
         return res.status(500).json({ error: "Failed to split audio" });
       }
 
-      // Find the output subfolder (e.g. htdemucs_6s/audio (3))
       const modelSubfolder = fs
         .readdirSync(outputDir)
         .find((f) => fs.lstatSync(path.join(outputDir, f)).isDirectory());
+
       if (!modelSubfolder) {
         return res.status(500).json({ error: "No output folder from Demucs" });
       }
@@ -209,20 +206,18 @@ app.post("/split", upload.single("audio"), async (req, res) => {
       const audioSubfolder = fs
         .readdirSync(demucsOutput)
         .find((f) => fs.lstatSync(path.join(demucsOutput, f)).isDirectory());
+
       if (!audioSubfolder) {
         return res.status(500).json({ error: "No audio folder inside Demucs output" });
       }
 
       const fullOutputPath = path.join(demucsOutput, audioSubfolder);
-
-      // Zip the stems
       const zipPath = path.join(outputDir, "stems.zip");
       const output = fs.createWriteStream(zipPath);
       const archive = archiver("zip", { zlib: { level: 9 } });
 
       output.on("close", () => {
         res.download(zipPath, "stems.zip", () => {
-          // Cleanup
           fs.rmSync(outputDir, { recursive: true, force: true });
           fs.unlinkSync(inputFile);
         });
@@ -241,7 +236,6 @@ app.post("/split", upload.single("audio"), async (req, res) => {
     res.status(500).json({ error: "Failed to process audio" });
   }
 });
-
 
 app.listen(port, () => {
   console.log(`Server is running on http://localhost:${port}`);
