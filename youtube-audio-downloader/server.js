@@ -6,7 +6,7 @@ const ffmpegPath = require("ffmpeg-static");
 const path = require("path");
 const fs = require("fs");
 const archiver = require("archiver");
-const { exec } = require("child_process"); // Added for Docker
+const ytdlp = require("yt-dlp-exec");
 const app = express();
 const port = 3000;
 
@@ -35,75 +35,64 @@ app.post("/karaokeify", async (req, res) => {
   }
 
   const tmpDir = path.join(__dirname, `karaoke_${Date.now()}`);
-  const inputFile = path.join(tmpDir, "input.%(ext)s"); // let yt-dlp choose extension
   const outputDir = path.join(tmpDir, "output");
 
   fs.mkdirSync(tmpDir, { recursive: true });
   fs.mkdirSync(outputDir, { recursive: true });
 
   try {
-    // Construct command
-  const downloadCmd = `/usr/local/bin/yt-dlp --ffmpeg-location /usr/bin/ffmpeg -f bestaudio -x --audio-format mp3 -o "${inputFile}" "${url}"`;
-
-    console.log("⏬ Running yt-dlp command:", downloadCmd);
-    exec("ls -l /usr/local/bin/yt-dlp", (err, stdout, stderr) => {
-      console.log("Check yt-dlp binary:", stdout || stderr);
+    console.log("⏬ Running yt-dlp via yt-dlp-exec");
+    await ytdlp(url, {
+      output: path.join(tmpDir, "input.%(ext)s"),
+      extractAudio: true,
+      audioFormat: "mp3",
+      ffmpegLocation: "/usr/bin/ffmpeg",
     });
-    
-    exec(downloadCmd, async (error, stdout, stderr) => {
-      console.log("yt-dlp stdout:", stdout);
-      console.error("yt-dlp stderr:", stderr);
+    console.log("✅ yt-dlp download complete");
+
+    const downloadedFile = fs.readdirSync(tmpDir).find(f =>
+      f.startsWith("input.") && !f.endsWith(".part")
+    );
+    if (!downloadedFile) {
+      console.error("❌ No audio file found after download");
+      return res.status(500).json({ error: "No audio file was downloaded." });
+    }
+
+    const fullInputPath = path.join(tmpDir, downloadedFile);
+    const demucsCmd = `demucs -d cpu -n htdemucs_6s --two-stems=vocals --mp3 "${fullInputPath}" --out "${outputDir}"`;
+
+    console.log("🎛️ Running Demucs command:", demucsCmd);
+
+    exec(demucsCmd, async (error, stdout, stderr) => {
+      console.log("Demucs stdout:", stdout);
+      console.error("Demucs stderr:", stderr);
 
       if (error) {
-        console.error("❌ YouTube download error:", error);
-        return res.status(500).json({ error: "Failed to download YouTube audio" });
+        console.error("❌ Demucs error:", error);
+        return res.status(500).json({ error: "Audio separation failed" });
       }
 
-      // Find downloaded .mp3 file
-      const downloadedFile = fs.readdirSync(tmpDir).find(f => f.endsWith(".mp3"));
-      if (!downloadedFile) {
-        console.error("❌ No MP3 file found in temp dir.");
-        return res.status(500).json({ error: "No audio file was downloaded." });
-      }
+      const modelSubfolder = fs.readdirSync(outputDir).find((f) =>
+        fs.lstatSync(path.join(outputDir, f)).isDirectory()
+      );
+      const innerFolder = fs.readdirSync(path.join(outputDir, modelSubfolder)).find((f) =>
+        fs.lstatSync(path.join(outputDir, modelSubfolder, f)).isDirectory()
+      );
 
-      const fullInputPath = path.join(tmpDir, downloadedFile);
+      const fullPath = path.join(outputDir, modelSubfolder, innerFolder);
+      const zipPath = path.join(tmpDir, "stems.zip");
 
-      // Run Demucs
-      const demucsCmd = `demucs -d cpu -n htdemucs_6s --two-stems=vocals --mp3 "${fullInputPath}" --out "${outputDir}"`;
+      const output = fs.createWriteStream(zipPath);
+      const archive = archiver("zip", { zlib: { level: 9 } });
 
-      console.log("🎛️ Running Demucs command:", demucsCmd);
+      archive.pipe(output);
+      archive.directory(fullPath, false);
+      archive.finalize();
 
-      exec(demucsCmd, async (error, stdout, stderr) => {
-        console.log("Demucs stdout:", stdout);
-        console.error("Demucs stderr:", stderr);
-
-        if (error) {
-          console.error("❌ Demucs error:", error);
-          return res.status(500).json({ error: "Audio separation failed" });
-        }
-
-        const modelSubfolder = fs.readdirSync(outputDir).find((f) =>
-          fs.lstatSync(path.join(outputDir, f)).isDirectory()
-        );
-        const innerFolder = fs.readdirSync(path.join(outputDir, modelSubfolder)).find((f) =>
-          fs.lstatSync(path.join(outputDir, modelSubfolder, f)).isDirectory()
-        );
-
-        const fullPath = path.join(outputDir, modelSubfolder, innerFolder);
-        const zipPath = path.join(tmpDir, "stems.zip");
-
-        const output = fs.createWriteStream(zipPath);
-        const archive = archiver("zip", { zlib: { level: 9 } });
-
-        archive.pipe(output);
-        archive.directory(fullPath, false);
-        archive.finalize();
-
-        output.on("close", () => {
-          console.log("✅ Sending zip file:", zipPath);
-          res.download(zipPath, "stems.zip", () => {
-            fs.rmSync(tmpDir, { recursive: true, force: true });
-          });
+      output.on("close", () => {
+        console.log("✅ Sending zip file:", zipPath);
+        res.download(zipPath, "stems.zip", () => {
+          fs.rmSync(tmpDir, { recursive: true, force: true });
         });
       });
     });
@@ -112,6 +101,7 @@ app.post("/karaokeify", async (req, res) => {
     res.status(500).json({ error: "Failed to karaokeify" });
   }
 });
+
 
 
 app.post("/download", upload.none(), (req, res) => {
