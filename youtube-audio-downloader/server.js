@@ -3,7 +3,6 @@ const cors = require("cors");
 const multer = require("multer");
 const ffmpeg = require("fluent-ffmpeg");
 const ffmpegPath = require("ffmpeg-static");
-const ytDlpPath = "/opt/homebrew/bin/yt-dlp"; // or use `which yt-dlp` to find it
 const path = require("path");
 const fs = require("fs");
 const archiver = require("archiver");
@@ -44,7 +43,7 @@ app.post("/karaokeify", async (req, res) => {
 
   try {
     // Download audio from YouTube using yt-dlp
-    const downloadCmd = `yt-dlp -f bestaudio -x --audio-format mp3 ...`;
+    const downloadCmd = `/usr/local/bin/yt-dlp --ffmpeg-location /usr/bin/ffmpeg -f bestaudio -x --audio-format mp3 -o "${inputFile}" "${url}"`;
     exec(downloadCmd, async (error) => {
       if (error) {
         console.error("YouTube download error:", error);
