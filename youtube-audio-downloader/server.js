@@ -6,17 +6,14 @@ const ffmpegPath = require("ffmpeg-static");
 const path = require("path");
 const fs = require("fs");
 const archiver = require("archiver");
-const ytdlp = require("yt-dlp-exec");
-const { exec } = require("child_process");
+const { exec, execFile } = require("child_process");
 
 const app = express();
 const port = 3000;
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-const localYtDlp = "/opt/homebrew/bin/yt-dlp";
-const renderYtDlp = "/usr/local/bin/yt-dlp";
-const ytDlpPath = fs.existsSync(localYtDlp) ? localYtDlp : renderYtDlp;
+const ytDlpPath = "/usr/local/bin/yt-dlp"; // Installed manually in Dockerfile
 
 const upload = multer({ dest: "uploads/" });
 
@@ -26,7 +23,6 @@ app.use(
     methods: ["GET", "POST"],
   })
 );
-
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -45,23 +41,31 @@ app.post("/karaokeify", async (req, res) => {
   fs.mkdirSync(tmpDir, { recursive: true });
   fs.mkdirSync(outputDir, { recursive: true });
 
-  try {
-    console.log("⏬ Running yt-dlp via yt-dlp-exec");
-    await ytdlp(url, {
-      output: path.join(tmpDir, "input.%(ext)s"),
-      extractAudio: true,
-      audioFormat: "mp3",
-      ffmpegLocation: "/usr/bin/ffmpeg",
-      execPath: ytDlpPath
-    });
-    console.log("✅ yt-dlp download complete");
+  const outputPath = path.join(tmpDir, "input.%(ext)s");
+  const ytArgs = [
+    url,
+    "--output", outputPath,
+    "--extract-audio",
+    "--audio-format", "mp3",
+    "--ffmpeg-location", "/usr/bin/ffmpeg"
+  ];
+
+  console.log("⏬ Running yt-dlp command...");
+
+  execFile(ytDlpPath, ytArgs, (error, stdout, stderr) => {
+    console.log("yt-dlp stdout:", stdout);
+    console.error("yt-dlp stderr:", stderr);
+
+    if (error) {
+      console.error("❌ yt-dlp error:", error);
+      return res.status(500).json({ error: "Failed to download audio from YouTube" });
+    }
 
     const downloadedFile = fs.readdirSync(tmpDir).find(f =>
       f.startsWith("input.") && !f.endsWith(".part")
     );
     if (!downloadedFile) {
-      console.error("❌ No audio file found after download");
-      return res.status(500).json({ error: "No audio file was downloaded." });
+      return res.status(500).json({ error: "No audio file found after download" });
     }
 
     const fullInputPath = path.join(tmpDir, downloadedFile);
@@ -78,10 +82,10 @@ app.post("/karaokeify", async (req, res) => {
         return res.status(500).json({ error: "Audio separation failed" });
       }
 
-      const modelSubfolder = fs.readdirSync(outputDir).find((f) =>
+      const modelSubfolder = fs.readdirSync(outputDir).find(f =>
         fs.lstatSync(path.join(outputDir, f)).isDirectory()
       );
-      const innerFolder = fs.readdirSync(path.join(outputDir, modelSubfolder)).find((f) =>
+      const innerFolder = fs.readdirSync(path.join(outputDir, modelSubfolder)).find(f =>
         fs.lstatSync(path.join(outputDir, modelSubfolder, f)).isDirectory()
       );
 
@@ -102,139 +106,7 @@ app.post("/karaokeify", async (req, res) => {
         });
       });
     });
-  } catch (err) {
-    console.error("❌ Unexpected error:", err);
-    res.status(500).json({ error: "Failed to karaokeify" });
-  }
-});
-
-app.post("/download", upload.none(), (req, res) => {
-  const { url } = req.body;
-  if (!url || !url.startsWith("http")) {
-    return res.status(400).json({ error: "Invalid YouTube URL" });
-  }
-
-  const outputPath = path.join(__dirname, `video_${Date.now()}.mp4`);
-  const command = `yt-dlp -f "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]" -o "${outputPath}" "${url}"`;
-
-  exec(command, (error, stdout, stderr) => {
-    console.log("YTDLP STDOUT:", stdout);
-    console.error("YTDLP STDERR:", stderr);
-
-    if (error) {
-      console.error("Download error:", error);
-      return res.status(500).json({ error: "Failed to download video" });
-    }
-
-    res.download(outputPath, "video.mp4", () => {
-      fs.unlinkSync(outputPath);
-    });
   });
-});
-
-app.post("/convert", upload.single("video"), (req, res) => {
-  const filePath = req.file.path;
-  res.header("Content-Disposition", 'attachment; filename="audio.mp3"');
-
-  ffmpeg(filePath)
-    .audioCodec("libmp3lame")
-    .format("mp3")
-    .on("error", (err) => {
-      console.error("Error converting video:", err);
-      res.status(500).json({ error: "Failed to convert video" });
-    })
-    .on("end", () => {})
-    .pipe(res, { end: true });
-});
-
-app.post("/pitch", upload.single("audio"), (req, res) => {
-  const filePath = req.file.path;
-  const semitones = parseFloat(req.body.semitones);
-
-  if (isNaN(semitones)) {
-    return res.status(400).json({ error: "Invalid semitone value" });
-  }
-
-  const outputFile = `${filePath}_pitched.mp3`;
-  const pitchFactor = Math.pow(2, semitones / 12);
-
-  ffmpeg(filePath)
-    .audioFilter(`asetrate=44100*${pitchFactor},atempo=${1 / pitchFactor}`)
-    .audioCodec("libmp3lame")
-    .format("mp3")
-    .on("error", (err) => {
-      console.error("Error changing pitch:", err);
-      res.status(500).json({ error: "Pitch shift failed" });
-    })
-    .on("end", () => {
-      res.download(outputFile, "pitched.mp3", () => {
-        fs.unlinkSync(filePath);
-        fs.unlinkSync(outputFile);
-      });
-    })
-    .save(outputFile);
-});
-
-app.post("/split", upload.single("audio"), async (req, res) => {
-  const inputFile = req.file.path;
-  const outputDir = path.join(__dirname, `output_${Date.now()}`);
-  const envPathToDemucs = "/opt/anaconda3/envs/demucs/bin/demucs";
-
-  try {
-    fs.mkdirSync(outputDir, { recursive: true });
-
-    const command = `${envPathToDemucs} -d cpu -n htdemucs_6s --two-stems=vocals --mp3 "${inputFile}" --out "${outputDir}"`;
-
-    exec(command, async (error, stdout, stderr) => {
-      console.log("DEMUCS STDOUT:", stdout);
-      console.error("DEMUCS STDERR:", stderr);
-
-      if (error) {
-        console.error("Demucs error:", error);
-        return res.status(500).json({ error: "Failed to split audio" });
-      }
-
-      const modelSubfolder = fs
-        .readdirSync(outputDir)
-        .find((f) => fs.lstatSync(path.join(outputDir, f)).isDirectory());
-
-      if (!modelSubfolder) {
-        return res.status(500).json({ error: "No output folder from Demucs" });
-      }
-
-      const demucsOutput = path.join(outputDir, modelSubfolder);
-      const audioSubfolder = fs
-        .readdirSync(demucsOutput)
-        .find((f) => fs.lstatSync(path.join(demucsOutput, f)).isDirectory());
-
-      if (!audioSubfolder) {
-        return res.status(500).json({ error: "No audio folder inside Demucs output" });
-      }
-
-      const fullOutputPath = path.join(demucsOutput, audioSubfolder);
-      const zipPath = path.join(outputDir, "stems.zip");
-      const output = fs.createWriteStream(zipPath);
-      const archive = archiver("zip", { zlib: { level: 9 } });
-
-      output.on("close", () => {
-        res.download(zipPath, "stems.zip", () => {
-          fs.rmSync(outputDir, { recursive: true, force: true });
-          fs.unlinkSync(inputFile);
-        });
-      });
-
-      archive.on("error", (err) => {
-        throw err;
-      });
-
-      archive.pipe(output);
-      archive.directory(fullOutputPath, false);
-      archive.finalize();
-    });
-  } catch (err) {
-    console.error("Error:", err);
-    res.status(500).json({ error: "Failed to process audio" });
-  }
 });
 
 app.listen(port, () => {
