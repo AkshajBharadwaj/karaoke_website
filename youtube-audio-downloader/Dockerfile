@@ -1,20 +1,16 @@
 FROM node:18
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y ffmpeg python3 python3-pip && \
-    pip3 install yt-dlp
+RUN apt-get update && \
+    apt-get install -y ffmpeg python3 python3-pip && \
+    pip3 install yt-dlp && \
+    chmod +x /root/.local/bin/yt-dlp
 
-# Set PATH just in case
+# Make sure yt-dlp is in PATH
 ENV PATH="/root/.local/bin:${PATH}"
 
-# Create app directory
 WORKDIR /app
-
-# Copy app files
 COPY . .
-
-# Install Node dependencies
 RUN npm install
 
-# Start server
 CMD ["node", "server.js"]
