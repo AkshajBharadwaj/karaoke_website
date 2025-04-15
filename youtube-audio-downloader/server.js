@@ -7,7 +7,7 @@ const path = require("path");
 const fs = require("fs");
 const archiver = require("archiver");
 const { exec } = require("child_process");
-const ytdl = require("ytdl-core");
+const ytdl = require("@distube/ytdl-core");
 
 const app = express();
 const port = 3000;
