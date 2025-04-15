@@ -11,7 +11,9 @@ const app = express();
 const port = 3000;
 
 ffmpeg.setFfmpegPath(ffmpegPath);
-
+const localYtDlp = "/opt/homebrew/bin/yt-dlp";
+const renderYtDlp = "/usr/local/bin/yt-dlp";
+const ytDlpPath = fs.existsSync(localYtDlp) ? localYtDlp : renderYtDlp;
 const upload = multer({ dest: "uploads/" });
 
 app.use(
@@ -47,7 +49,9 @@ app.post("/karaokeify", async (req, res) => {
       extractAudio: true,
       audioFormat: "mp3",
       ffmpegLocation: "/usr/bin/ffmpeg",
+      binary: ytDlpPath
     });
+    
     console.log("✅ yt-dlp download complete");
 
     const downloadedFile = fs.readdirSync(tmpDir).find(f =>
