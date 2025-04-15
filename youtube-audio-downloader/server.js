@@ -52,7 +52,7 @@ app.post("/karaokeify", async (req, res) => {
       extractAudio: true,
       audioFormat: "mp3",
       ffmpegLocation: "/usr/bin/ffmpeg",
-      binary: ytDlpPath,
+      execPath: ytDlpPath
     });
     console.log("✅ yt-dlp download complete");
 
