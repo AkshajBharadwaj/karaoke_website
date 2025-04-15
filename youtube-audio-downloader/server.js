@@ -6,14 +6,12 @@ const ffmpegPath = require("ffmpeg-static");
 const path = require("path");
 const fs = require("fs");
 const archiver = require("archiver");
-const { execFile } = require("child_process");
-const ytDlpPath = "/usr/bin/yt-dlp"; // pip-installed path from Dockerfile
+const { exec, execFile } = require("child_process");
 
 const app = express();
 const port = 3000;
 
 ffmpeg.setFfmpegPath(ffmpegPath);
-
 
 const upload = multer({ dest: "uploads/" });
 
@@ -42,22 +40,21 @@ app.post("/karaokeify", async (req, res) => {
   fs.mkdirSync(outputDir, { recursive: true });
 
   const outputPath = path.join(tmpDir, "input.%(ext)s");
-  const ytArgs = [
+  const youtubeDlPath = "youtube-dl"; // ✅ using youtube-dl now
+
+  console.log("⏬ Running youtube-dl command...");
+
+  execFile(youtubeDlPath, [
     url,
     "--output", outputPath,
     "--extract-audio",
-    "--audio-format", "mp3",
-    "--ffmpeg-location", "/usr/bin/ffmpeg"
-  ];
-
-  console.log("⏬ Running yt-dlp command...");
-
-  execFile(ytDlpPath, ytArgs, (error, stdout, stderr) => {
-    console.log("yt-dlp stdout:", stdout);
-    console.error("yt-dlp stderr:", stderr);
+    "--audio-format", "mp3"
+  ], (error, stdout, stderr) => {
+    console.log("youtube-dl stdout:", stdout);
+    console.error("youtube-dl stderr:", stderr);
 
     if (error) {
-      console.error("❌ yt-dlp error:", error);
+      console.error("❌ youtube-dl error:", error);
       return res.status(500).json({ error: "Failed to download audio from YouTube" });
     }
 
