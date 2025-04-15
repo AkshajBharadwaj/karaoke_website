@@ -13,7 +13,7 @@ const port = 3000;
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-const ytDlpPath = "/usr/local/bin/yt-dlp"; // Installed manually in Dockerfile
+const ytDlpPath = "/usr/bin/yt-dlp"; // Matches Docker symlink
 
 const upload = multer({ dest: "uploads/" });
 
