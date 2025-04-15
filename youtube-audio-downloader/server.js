@@ -7,7 +7,7 @@ const path = require("path");
 const fs = require("fs");
 const archiver = require("archiver");
 const { exec } = require("child_process");
-const ytdl = require("@distube/ytdl-core");
+const axios = require("axios");
 
 const app = express();
 const port = 3000;
@@ -30,7 +30,7 @@ app.get("/", (req, res) => {
 
 app.post("/karaokeify", async (req, res) => {
   const { url } = req.body;
-  if (!url || !ytdl.validateURL(url)) {
+  if (!url) {
     return res.status(400).json({ error: "Invalid YouTube URL" });
   }
 
@@ -42,17 +42,21 @@ app.post("/karaokeify", async (req, res) => {
 
   const mp3Path = path.join(tmpDir, "input.mp3");
 
-  console.log("🎵 Downloading YouTube audio and converting to MP3...");
+  console.log("🎵 Downloading YouTube audio via third-party API...");
 
-  ffmpeg(ytdl(url, { filter: "audioonly" }))
-    .audioCodec("libmp3lame")
-    .format("mp3")
-    .on("error", (err) => {
-      console.error("❌ MP3 conversion error:", err);
-      res.status(500).json({ error: "Audio conversion failed" });
-    })
-    .on("end", () => {
-      console.log("✅ Audio downloaded and converted, running Demucs...");
+  try {
+    const response = await axios({
+      method: "GET",
+      url: "https://youtube-download-api.matheusishiyama.repl.co/mp3/",
+      params: { url },
+      responseType: "stream",
+    });
+
+    const writer = fs.createWriteStream(mp3Path);
+    response.data.pipe(writer);
+
+    writer.on("finish", () => {
+      console.log("✅ Audio downloaded, running Demucs...");
 
       const demucsCmd = `demucs -d cpu -n htdemucs_6s --two-stems=vocals --mp3 "${mp3Path}" --out "${outputDir}"`;
 
@@ -89,8 +93,16 @@ app.post("/karaokeify", async (req, res) => {
           });
         });
       });
-    })
-    .save(mp3Path);
+    });
+
+    writer.on("error", (err) => {
+      console.error("❌ Error writing MP3 file:", err);
+      res.status(500).json({ error: "Failed to write MP3 file" });
+    });
+  } catch (err) {
+    console.error("❌ Error downloading MP3:", err);
+    res.status(500).json({ error: "Failed to download MP3" });
+  }
 });
 
 app.listen(port, () => {
