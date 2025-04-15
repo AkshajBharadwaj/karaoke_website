@@ -6,7 +6,7 @@ const ffmpegPath = require("ffmpeg-static");
 const path = require("path");
 const fs = require("fs");
 const archiver = require("archiver");
-const { exec, execFile } = require("child_process");
+const { exec } = require("child_process");
 
 const app = express();
 const port = 3000;
@@ -39,17 +39,11 @@ app.post("/karaokeify", async (req, res) => {
   fs.mkdirSync(tmpDir, { recursive: true });
   fs.mkdirSync(outputDir, { recursive: true });
 
-  const outputPath = path.join(tmpDir, "input.%(ext)s");
-  const youtubeDlPath = "youtube-dl"; // ✅ using youtube-dl now
+  const command = `youtube-dl "${url}" --output "${path.join(tmpDir, 'input.%(ext)s')}" --extract-audio --audio-format mp3`;
 
   console.log("⏬ Running youtube-dl command...");
 
-  execFile(youtubeDlPath, [
-    url,
-    "--output", outputPath,
-    "--extract-audio",
-    "--audio-format", "mp3"
-  ], (error, stdout, stderr) => {
+  exec(command, { shell: true }, (error, stdout, stderr) => {
     console.log("youtube-dl stdout:", stdout);
     console.error("youtube-dl stderr:", stderr);
 
