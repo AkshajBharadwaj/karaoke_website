@@ -1,23 +1,21 @@
-# Use official Node.js image
 FROM node:18
 
-# Install ffmpeg + python3 + youtube-dl
+# Install ffmpeg for audio conversion
 RUN apt-get update && \
-    apt-get install -y ffmpeg python3 python3-pip && \
-    pip3 install --no-cache-dir youtube-dl
+    apt-get install -y ffmpeg
 
 # Set working directory
 WORKDIR /app
 
-# Install Node dependencies
+# Install node dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy all source code
+# Copy app source code
 COPY . .
 
-# Expose backend port
+# Expose app port
 EXPOSE 3000
 
-# Run server
+# Start the server
 CMD ["node", "server.js"]
