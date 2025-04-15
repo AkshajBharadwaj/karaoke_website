@@ -17,10 +17,11 @@ const upload = multer({ dest: "uploads/" });
 
 app.use(
   cors({
-    origin: "http://localhost:3001",
+    origin: ["http://localhost:3001", "https://karaoke-website.vercel.app"],
     methods: ["GET", "POST"],
   })
 );
+
 app.use(express.json());
 
 app.get("/", (req, res) => {
