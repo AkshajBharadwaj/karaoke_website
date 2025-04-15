@@ -7,7 +7,7 @@ const path = require("path");
 const fs = require("fs");
 const archiver = require("archiver");
 const { execFile } = require("child_process");
-const ytDlpPath = "./node_modules/.bin/yt-dlp"; // ✅ Local binary path
+const ytDlpPath = "/usr/bin/yt-dlp"; // pip-installed path from Dockerfile
 
 const app = express();
 const port = 3000;
