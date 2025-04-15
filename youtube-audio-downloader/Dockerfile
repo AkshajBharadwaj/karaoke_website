@@ -1,23 +1,22 @@
-# Use an official Node base image
+# Use official Node.js image
 FROM node:18
 
-# Install dependencies
+# Install ffmpeg for audio processing
 RUN apt-get update && \
-    apt-get install -y ffmpeg curl python3 python3-pip && \
-    pip3 install -U yt-dlp && \
-    ln -s /usr/local/bin/yt-dlp /usr/bin/yt-dlp
+    apt-get install -y ffmpeg && \
+    apt-get clean
 
-# Set working directory
+# Create app directory
 WORKDIR /app
 
-# Copy package files and install Node dependencies
+# Copy package files and install dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy all source files
+# Copy rest of the source code
 COPY . .
 
-# Expose the app port
+# Expose port (must match your Express server)
 EXPOSE 3000
 
 # Start the server

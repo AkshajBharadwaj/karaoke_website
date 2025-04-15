@@ -6,14 +6,14 @@ const ffmpegPath = require("ffmpeg-static");
 const path = require("path");
 const fs = require("fs");
 const archiver = require("archiver");
-const { exec, execFile } = require("child_process");
+const { execFile } = require("child_process");
+const ytDlpPath = "./node_modules/.bin/yt-dlp"; // ✅ Local binary path
 
 const app = express();
 const port = 3000;
 
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-const ytDlpPath = "/usr/bin/yt-dlp"; // Matches Docker symlink
 
 const upload = multer({ dest: "uploads/" });
 
